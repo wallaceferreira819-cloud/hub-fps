@@ -1,0 +1,166 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUB FPS</title>
+<style>
+body{margin:0;overflow:hidden;background:#111;font-family:Arial;color:white}
+#hud{position:absolute;top:12px;left:12px;font-size:18px;text-shadow:2px 2px #000}
+#cross{position:absolute;top:50%;left:50%;font-size:30px;transform:translate(-50%,-50%)}
+#start{position:absolute;inset:0;background:#080d18dd;display:flex;align-items:center;justify-content:center;flex-direction:column}
+button{background:#00c853;color:white;border:0;border-radius:12px;padding:16px 28px;font-size:20px;margin:5px}
+#controls{position:absolute;bottom:20px;left:15px;display:grid;grid-template-columns:55px 55px 55px;gap:5px}
+#controls button{padding:15px 5px;background:#222b;color:white}
+#fire{position:absolute;bottom:35px;right:25px}
+</style>
+</head>
+<body>
+<div id="hud">HUB FPS 🔫<br>Vida: <span id="life">100</span><br>Eliminações: <span id="kills">0</span><br>Inimigos: 20</div>
+<div id="cross">+</div>
+<div id="controls">
+<button></button><button id="up">⬆️</button><button></button>
+<button id="left">⬅️</button><button id="down">⬇️</button><button id="right">➡️</button>
+</div>
+<button id="fire">🔥 ATIRAR</button>
+<div id="start">
+<h1>🔥 HUB FPS</h1>
+<p>ARENA DE COMBATE 3D</p>
+<button id="play">JOGAR</button>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87b8d8);
+scene.fog=new THREE.Fog(0x87b8d8,25,90);
+
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,150);
+camera.position.set(0,2,8);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x555555,2));
+const sun=new THREE.DirectionalLight(0xffffff,2);
+sun.position.set(10,20,10);
+scene.add(sun);
+
+const floor=new THREE.Mesh(
+new THREE.PlaneGeometry(100,100),
+new THREE.MeshStandardMaterial({color:0x54734b})
+);
+floor.rotation.x=-Math.PI/2;
+scene.add(floor);
+
+const wallMat=new THREE.MeshStandardMaterial({color:0x777777});
+for(let i=0;i<20;i++){
+let wall=new THREE.Mesh(new THREE.BoxGeometry(3,2,1),wallMat);
+wall.position.set(Math.random()*35-17,1,Math.random()*-35);
+scene.add(wall);
+}
+
+const player=new THREE.Group();
+scene.add(player);
+player.position.set(0,0,8);
+camera.position.set(0,2,0);
+player.add(camera);
+
+const enemies=[];
+for(let i=0;i<20;i++){
+const bot=new THREE.Group();
+const body=new THREE.Mesh(
+new THREE.BoxGeometry(.8,1.2,.5),
+new THREE.MeshStandardMaterial({color:0xc62828})
+);
+body.position.y=1;
+bot.add(body);
+const head=new THREE.Mesh(
+new THREE.SphereGeometry(.3,16,16),
+new THREE.MeshStandardMaterial({color:0xffcc99})
+);
+head.position.y=1.8;
+bot.add(head);
+bot.position.set(Math.random()*30-15,0,-Math.random()*35-5);
+scene.add(bot);
+enemies.push(bot);
+}
+
+let kills=0,life=100,started=false;
+let keys={};
+let yaw=0,pitch=0;
+
+document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
+document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+function hold(id,key){
+const b=document.getElementById(id);
+b.addEventListener('touchstart',e=>{e.preventDefault();keys[key]=true});
+b.addEventListener('touchend',()=>keys[key]=false);
+b.addEventListener('mousedown',()=>keys[key]=true);
+b.addEventListener('mouseup',()=>keys[key]=false);
+}
+hold('up','w');hold('down','s');
+hold('left','a');hold('right','d');
+
+document.addEventListener('mousemove',e=>{
+if(document.pointerLockElement===renderer.domElement){
+yaw-=e.movementX*.003;
+pitch-=e.movementY*.003;
+pitch=Math.max(-1,Math.min(1,pitch));
+}
+});
+
+renderer.domElement.addEventListener('click',()=>{
+if(started && innerWidth>700)renderer.domElement.requestPointerLock?.();
+});
+
+function shoot(){
+if(!started)return;
+const ray=new THREE.Raycaster();
+ray.setFromCamera(new THREE.Vector2(0,0),camera);
+const hits=ray.intersectObjects(enemies,true);
+if(hits.length){
+let bot=hits[0].object.parent;
+while(bot && !enemies.includes(bot))bot=bot.parent;
+if(bot){
+scene.remove(bot);
+enemies.splice(enemies.indexOf(bot),1);
+kills++;
+document.getElementById('kills').textContent=kills;
+}
+}
+}
+document.getElementById('fire').addEventListener('click',shoot);
+
+document.getElementById('play').onclick=()=>{
+started=true;
+document.getElementById('start').style.display='none';
+};
+
+function animate(){
+requestAnimationFrame(animate);
+if(started){
+player.rotation.y=yaw;
+camera.rotation.x=pitch;
+const speed=.13;
+if(keys.w)player.translateZ(-speed);
+if(keys.s)player.translateZ(speed);
+if(keys.a)player.translateX(-speed);
+if(keys.d)player.translateX(speed);
+}
+renderer.render(scene,camera);
+}
+animate();
+
+addEventListener('resize',()=>{
+camera.aspect=innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
